@@ -30,8 +30,12 @@ When you run the test, the logs will display the self, community, and total bala
 
 If you examine the `IdentityStaking::release` function, you'll notice that it updates `selfStakes` and `communityStakes`, but it does not update `userTotalStaked`.
 
+> Upgradeability functionality was removed from contracts to facilitate the PoC.
+
 ### Install dependencies
+```shell
 make install
+```
 
 ### Run invariant test
 
