@@ -1,66 +1,40 @@
-## Foundry
+## Proof of concept of userTotalStaked broken Invariant .
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+This repository implement `Invariant Tests` functionality provided by Foundry to find a broken invariant in the `IdentityStaking` contract of the Gitcoin Passport protocol.
 
-Foundry consists of:
+This broken Invariant was found manually in a Code4rena Bug Bounty round, here the link to check further details - [audit report](https://solodit.xyz/issues/h-01-usertotalstaked-invariant-will-be-broken-due-to-vulnerable-implementations-in-release-code4rena-gitcoin-passport-gitcoin-passport-git).
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+The broken invariant is a protocol-defined rule stating that the user's total staked amount must equal the sum of their self-staked amount and the sum of all community staked amounts made by the user.
 
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```js
+userTotalStaked[user] = selfStakes[user].amount + sum(communityStakes[user][stakee].amount for all x staked on by user)
 ```
 
-### Test
+`Invariant::statefulFuzz_userTotalStakedMustBeEqualThanSelfAndCommunityStake` is the function in the `test/invariant/Invariant.sol `file that checks the invariant.  
 
-```shell
-$ forge test
+The Handler.sol file contains the main functions that impact the self, community, and total balances. Each function is configured to run in a random manner, accounting for potential revert errors due to disallowed values, ensuring the correct functionality of the protocol.
+
+When you run the test, the logs will display the self, community, and total balances. The logs preceding the error show a discrepancy between `userTotalStaked` and `selfStakedAmount` + `communityStakedAmount`, which should not exist. Additionally, the `amountToRelease` value matches this discrepancy, indicating that the error occurs during the token release process. Thus, the error is happening in the `IdentityStaking::release` function, the last function called according to the Traces logs.
+
+```logs
+  amountToRelease:  2413
+  userTotalStaked:  730
+  selfStakedAmount + communityStakedAmount :  3143
+  Difference [userTotalStaked <> selfStakedAmount + communityStakedAmount ]  2413
 ```
+```shell
+     ├─ [0] VM::assertEq(730, 3143, "Invariant Failed!") [staticcall]
+    │   └─ ← [Revert] Invariant Failed!: 730 != 3143
+    └─ ← [Revert] Invariant Failed!: 730 != 3143
+```    
 
-### Format
+If you examine the `IdentityStaking::release` function, you'll notice that it updates `selfStakes` and `communityStakes`, but it does not update `userTotalStaked`.
+
+### Install dependencies
+make install
+
+### Run invariant test
 
 ```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+ forge test --match-test statefulFuzz_userTotalStakedMustBeEqualThanSelfAndCommunityStake -vvv
 ```
